@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import { GraphData, Link, Node, SubEdge } from "./types";
+import { GraphData, Link, Node, NodeMetrics, NodeMetricsType, SubEdge } from "./types";
 import { installDrag } from './drag';
 import { getIntersection } from './intersection';
 import { highlighLink, unhighlightLink } from './link';
@@ -444,7 +444,19 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         .data(graphData.nodes)
         .join("g")
         .attr("class", "node")
-        .style("pointer-events", "all");
+        .style("pointer-events", "all")
+        .on("mouseover", (event, d) => {
+            const rect = (root.node() as Element).getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            showNodeTooltip(tooltip, d, mouseX + 10, mouseY);
+        })
+        .on("mouseout", (event) => {
+            const e = event.toElement || event.relatedTarget;
+            if (!tooltip.node()?.contains(e)) {
+                hideTooltip(tooltip);
+            }
+        });
 
     // Add drag behavior for both static and dynamic modes
     if (!disableDrag) {
@@ -480,6 +492,9 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         .attr("rx", 4)
         .attr("ry", 4)
         .style("fill", d => {
+            if (hasAnyHighlight(d)) {
+                return COLOR_NODE_HIGHTLIGHT
+            }
             if (d.errorRate && d.errorRate > 0.01) return COLORS.NODE_ERROR;  // Red for high error
             if (d.latency && d.latency > 0.1) return COLORS.NODE_SLOW;     // Yellow for high latency
             return COLORS.NODE_NORMAL;                          // Green for healthy
@@ -736,4 +751,196 @@ function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElem
             hideTooltip(tooltip);
         }
     });
+}
+
+function hasAnyHighlight(node: Node): boolean {
+    if (!node?.metrics?.length) {
+        return false
+    }
+    return node.metrics?.some(metric => getHighlightType(metric) == HighlightType.High)
+}
+
+function showNodeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>, node: Node, x: number, y: number) {
+    // Only show tooltip if metrics exist
+    if (!node.metrics?.length) {
+        return;
+    }
+
+    // Reset tooltip state
+    tooltip.interrupt();
+    tooltip.style("opacity", 0);
+
+    let tableHTML = `
+        <table style="border-collapse: collapse;">
+            <tr>
+                <th style="padding: 5px; border: 1px solid ${COLORS.BORDER}">Metric</th>
+                <th style="padding: 5px; border: 1px solid ${COLORS.BORDER}">From</th>
+                <th style="padding: 5px; border: 1px solid ${COLORS.BORDER}">To</th>
+                <th style="padding: 5px; border: 1px solid ${COLORS.BORDER}">Change</th>
+            </tr>`;
+
+    node.metrics.forEach(metric => {
+        const valType = getValueType(metric.metricsType);
+        const highlightType = getHighlightType(metric);
+        let color = ""
+        if (highlightType == HighlightType.High) {
+            color = COLOR_HIGHTLIGHT
+        }
+        tableHTML += `
+        <tr>
+            <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${metric.metricsType}</td>
+            <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatValue(metric.comparison.baseValue, valType)}</td>
+            <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatValue(metric.comparison.value, valType)}</td>
+            <td style="padding: 5px; border: 1px solid ${COLORS.BORDER};color: ${color}">${formatChange(metric.comparison.increase, valType)}</td>
+        </tr>`;
+    });
+
+    tableHTML += `</table>`;
+
+    tooltip
+        .html(tableHTML)
+        .style("left", `${x}px`)
+        .style("top", `${y + 5}px`)
+        .transition()
+        .duration(200)
+        .style("opacity", 0.9);
+
+    tooltip.on("mouseout", (event) => {
+        const e = event.toElement || event.relatedTarget;
+        const tooltipNode = tooltip.node();
+        if (!tooltipNode?.contains(e) && e !== tooltipNode) {
+            hideTooltip(tooltip);
+        }
+    });
+}
+
+enum ValueType {
+    Percent = "percent",
+    Seconds = "seconds",
+    Bytes = "bytes",
+    BytesPerSecond = "bytesPerSecond",
+    Rate = "rate",
+    Number = "number",
+}
+
+function getValueType(metric: NodeMetricsType): ValueType {
+    switch (metric) {
+        case NodeMetricsType.CPU:
+            return ValueType.Percent;
+        case NodeMetricsType.MEMORY:
+            return ValueType.Percent;
+        case NodeMetricsType.GOROUTINES:
+            return ValueType.Rate;
+        case NodeMetricsType.GC_DURATION_SECONDS:
+            return ValueType.Seconds;
+        case NodeMetricsType.MEM_ALLOC_BYTES:
+            return ValueType.BytesPerSecond;
+        case NodeMetricsType.THREADS:
+            return ValueType.Number;
+        case NodeMetricsType.NETWORK_MYSQL_CONNECTION:
+            return ValueType.Rate;
+        case NodeMetricsType.NETWORK_REDIS_CONNECTION:
+            return ValueType.Rate;
+        case NodeMetricsType.NETWORK_ETCD_CONNECTION:
+            return ValueType.Rate;
+        case NodeMetricsType.POD_COUNT:
+            return ValueType.Number;
+        default:
+            return ValueType.Number;
+    }
+}
+function formatValue(value: number, valType: ValueType): string {
+    switch (valType) {
+        case ValueType.Percent:
+            return `${(value * 100).toFixed(2)}%`;
+        case ValueType.Seconds:
+            return `${value.toFixed(2)}s`;
+        case ValueType.Bytes:
+            return formatBytes(value);
+        case ValueType.BytesPerSecond:
+            return formatBytes(value) + "/s";
+        case ValueType.Rate:
+            return `${value.toFixed(2)}/s`;
+        case ValueType.Number:
+            return `${value.toFixed(2)}`;
+    }
+}
+
+function formatBytes(value: number): string {
+    if (value < 1024) {
+        return `${value}B`;
+    }
+    if (value < 1024 * 1024) {
+        return `${(value / 1024).toFixed(2)}KB`;
+    }
+    if (value < 1024 * 1024 * 1024) {
+        return `${(value / 1024 / 1024).toFixed(2)}MB`;
+    }
+    if (value < 1024 * 1024 * 1024 * 1024) {
+        return `${(value / 1024 / 1024 / 1024).toFixed(2)}GB`;
+    }
+    return `${(value / 1024 / 1024 / 1024 / 1024).toFixed(2)}TB`;
+}
+
+
+function formatChange(value: number, valType: ValueType): string {
+    let sign = "+"
+    if (value < 0) {
+        sign = "-"
+        value = -value
+    }
+    return `${sign}${formatValue(value, valType)}`;
+}
+
+const COLOR_HIGHTLIGHT = "red"
+
+const COLOR_NODE_HIGHTLIGHT = "#ffcaca"
+
+enum HighlightType {
+    None = "",
+    High = "high",
+}
+
+function getHighlightType(metrics: NodeMetrics): HighlightType {
+    if (metrics.comparison.increase == 0) {
+        return HighlightType.None
+    }
+    if (metrics.metricsType === NodeMetricsType.POD_COUNT) {
+        if (metrics.comparison.increase != 0) {
+            return HighlightType.High
+        }
+        return HighlightType.None
+    }
+    if (metrics.metricsType === NodeMetricsType.CPU) {
+        if (metrics.comparison.increase >= 0.1) {
+            return HighlightType.High
+        }
+        return HighlightType.None
+    }
+    if (metrics.metricsType === NodeMetricsType.MEMORY) {
+        if (metrics.comparison.increase >= 0.1) {
+            return HighlightType.High
+        }
+        return HighlightType.None
+    }
+    if (metrics.metricsType === NodeMetricsType.GOROUTINES) {
+        if (metrics.comparison.increase >= 10) {
+            return HighlightType.High
+        }
+        return HighlightType.None
+    }
+    if (metrics.metricsType === NodeMetricsType.MEM_ALLOC_BYTES) {
+        // 100M
+        if (metrics.comparison.increase >= 100 * 1024 * 1024) {
+            return HighlightType.High
+        }
+        return HighlightType.None
+    }
+    if (metrics.metricsType === NodeMetricsType.THREADS) {
+        if (metrics.comparison.increase >= 5) {
+            return HighlightType.High
+        }
+        return HighlightType.None
+    }
+    return HighlightType.None
 }

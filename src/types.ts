@@ -9,9 +9,31 @@ export interface Comparison {
     increasePercent: number
 }
 
+export enum NodeMetricsType {
+    CPU = "cpu",
+    MEMORY = "memory",
+    DISK = "disk",
+    GOROUTINES = "goroutines",
+    GC_DURATION_SECONDS = "gcDurationSeconds",
+    MEM_ALLOC_BYTES = "memAllocBytes",
+    THREADS = "threads",
+    NETWORK_MYSQL_CONNECTION = "networkMysqlConnection",
+    NETWORK_REDIS_CONNECTION = "networkRedisConnection",
+    NETWORK_ETCD_CONNECTION = "networkEtcdConnection",
+    POD_COUNT = "pod_count"
+}
+
+export interface NodeMetrics {
+    metricsType: NodeMetricsType
+    comparison: Comparison
+}
+
 export interface Node extends SimulationNodeDatum {
     id: NodeId;
     name: string;
+
+    metrics?: NodeMetrics[]
+
     x?: number;
     y?: number;
     fx?: number | null;
