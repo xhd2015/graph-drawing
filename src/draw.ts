@@ -2,6 +2,7 @@ import * as d3 from 'd3';
 import { GraphData, Link, Node, SubEdge } from "./types";
 import { installDrag } from './drag';
 import { getIntersection } from './intersection';
+import { highlighLink, unhighlightLink } from './link';
 
 // Color constants
 const COLORS = {
@@ -338,10 +339,11 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         .attr("fill", "none")
         .attr("marker-end", "url(#arrow)")
         .style("pointer-events", "all")
-        .on("mouseout", () => {
-            tooltip.transition()
-                .duration(500)
-                .style("opacity", 0);
+        .on("mouseover", (event, d) => {
+            highlighLink(link, d);
+        })
+        .on("mouseout", (event, d) => {
+            unhighlightLink(link, d);
         });
 
     // Add edge labels for latency
@@ -352,6 +354,9 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         .attr("class", "edge-label")
         .style("pointer-events", "all")
         .on("mouseover", (event, d) => {
+            // Highlight the corresponding edge
+            highlighLink(link, d);
+
             if (tooltipTimer) {
                 clearTimeout(tooltipTimer);
             }
@@ -366,7 +371,10 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
                 tooltipTimer = null;
             }, 500);
         })
-        .on("mouseout", (event) => {
+        .on("mouseout", (event, d) => {
+            // Remove edge highlight
+            unhighlightLink(link, d);
+
             if (tooltipTimer) {
                 clearTimeout(tooltipTimer);
                 tooltipTimer = null;
