@@ -21,12 +21,13 @@ function formatLatency(latencyInSeconds: number): string {
     return `${(latencyInSeconds * 1000).toFixed(0)}ms`;
 }
 
-export function drawGraph(graphData: GraphData): void {
+export function drawGraph(rootSelector: string, graphData: GraphData): void {
     const width = 800;
     const height = 400;
+    const root = d3.select(rootSelector);
 
     // Create SVG
-    const svg = d3.select("body").append("svg")
+    const svg = root.append("svg")
         .attr("width", "100%")
         .attr("height", "100%")
         .attr("viewBox", `0 0 ${width} ${height}`)
@@ -34,7 +35,7 @@ export function drawGraph(graphData: GraphData): void {
         .style("margin", "20px");
 
     // Create tooltip div
-    const tooltip = d3.select("body").append("div")
+    const tooltip = root.append("div")
         .attr("class", "tooltip")
         .style("opacity", 0)
         .style("position", "absolute")
@@ -50,13 +51,18 @@ export function drawGraph(graphData: GraphData): void {
     const zoomG = svg.append("g");
     const zoom = d3.zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.1, 4])
+        .filter(event => {
+            // Only allow zoom with Ctrl/Cmd + wheel, but allow panning with drag
+            return (!event.ctrlKey && !event.metaKey && event.type === 'mousedown') || // Allow panning
+                ((event.ctrlKey || event.metaKey) && event.type === 'wheel');      // Allow zooming with Ctrl/Cmd
+        })
         .on("zoom", (event) => {
             zoomG.attr("transform", event.transform);
         });
     svg.call(zoom);
 
     // Add zoom buttons
-    d3.select("body").insert("div", "svg")
+    root.insert("div", "svg")
         .style("position", "absolute")
         .style("left", "10px")
         .style("top", "10px")
