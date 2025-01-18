@@ -476,14 +476,12 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
             const targetHeight = parseFloat(targetNode?.getAttribute('data-height') || '0') / 2;
 
             if (disableSimulation) {
-                // In static mode, use horizontal lines between nodes
+                // In static mode, use curved paths between nodes
                 const sourceLevel = levels.get((d.source as any).id) || 0;
                 const targetLevel = levels.get((d.target as any).id) || 0;
 
-                // Calculate intersection points with rectangles for horizontal lines
-                // For source: angle = 0 (right)
+                // Calculate intersection points with rectangles
                 const sourceIntersect = getIntersection(0, sourceWidth, sourceHeight);
-                // For target: angle = Math.PI (left)
                 const targetIntersect = getIntersection(Math.PI, targetWidth, targetHeight);
 
                 const startX = (d.source as any).x + sourceIntersect.x;
@@ -491,7 +489,21 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
                 const endX = (d.target as any).x + targetIntersect.x;
                 const endY = (d.target as any).y + targetIntersect.y;
 
-                return `M${startX},${startY}L${endX},${endY}`;
+                // Calculate control points for the curve
+                const dx = endX - startX;
+                const midX = startX + dx * 0.5;
+
+                // Determine if we need to route above or below based on relative positions
+                const isGoingUp = endY < startY;
+                const controlPointOffset = Math.min(Math.abs(dx) * 0.2, 50); // Cap the curve height
+                const cp1x = startX + dx * 0.25;
+                const cp2x = startX + dx * 0.75;
+                const cpy = isGoingUp ?
+                    Math.min(startY, endY) - controlPointOffset :
+                    Math.max(startY, endY) + controlPointOffset;
+
+                // Use cubic Bézier curve for smoother paths
+                return `M${startX},${startY} C${cp1x},${startY} ${cp2x},${endY} ${endX},${endY}`;
             } else {
                 // Dynamic mode - use intersection points based on actual angle
                 const sourceIntersect = getIntersection(angle, sourceWidth, sourceHeight);
