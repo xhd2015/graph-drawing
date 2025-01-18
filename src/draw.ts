@@ -13,6 +13,9 @@ const COLORS = {
     NODE_SLOW: "#ffd700",
 } as const;
 
+// Layout configuration
+let verticalNodeSpacing = 80; // Minimum vertical space between nodes in pixels
+
 // Format latency for display (converts seconds to appropriate unit)
 function formatLatency(latencyInSeconds: number): string {
     if (latencyInSeconds >= 1) {
@@ -89,7 +92,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
     const nodesByLevel = new Map<number, Node[]>();
     const childrenByNode = new Map<number, Node[]>();
 
-    // Initialize nodesByLevel
+    // Initialize nodesByLevel and sort nodes by name within each level
     graphData.nodes.forEach(node => {
         const level = levels.get(node.id) || 0;
         if (!nodesByLevel.has(level)) {
@@ -99,11 +102,21 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         childrenByNode.set(node.id, []);
     });
 
+    // Sort nodes by name within each level for stable positioning
+    nodesByLevel.forEach((nodes, level) => {
+        nodes.sort((a, b) => a.name.localeCompare(b.name));
+    });
+
     // Build parent-child relationships
     graphData.links.forEach(link => {
         const source = typeof link.source === 'object' ? (link.source as Node).id : link.source;
         const target = typeof link.target === 'object' ? (link.target as Node) : graphData.nodes.find(n => n.id === (link.target as number))!;
         childrenByNode.get(source)?.push(target);
+    });
+
+    // Sort children by name for stable positioning
+    childrenByNode.forEach((children, nodeId) => {
+        children.sort((a, b) => a.name.localeCompare(b.name));
     });
 
     // Initialize simulation only if not disabled
@@ -122,12 +135,16 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
             const horizontalPadding = 150; // Minimum space between levels
             const xPos = levelWidth * level + levelWidth / 2 + horizontalPadding * level;
 
-            // Calculate vertical spacing to ensure nodes don't overlap
-            const minVerticalSpacing = 120; // Minimum space between nodes (increased from 100)
+            // Calculate vertical spacing to ensure even distribution
             const totalNodesInLevel = nodesInLevel.length;
-            const totalVerticalSpace = Math.max(levelHeight, (totalNodesInLevel - 1) * minVerticalSpacing);
-            const verticalStart = (height - totalVerticalSpace) / 2;
-            const yPos = verticalStart + (nodeIndex * minVerticalSpacing);
+            // Use max of minimum spacing and available height divided by number of gaps
+            const effectiveSpacing = Math.max(
+                verticalNodeSpacing,
+                levelHeight / (totalNodesInLevel + 1)
+            );
+            const totalHeight = effectiveSpacing * (totalNodesInLevel - 1);
+            const verticalStart = (height - totalHeight) / 2;
+            const yPos = verticalStart + (nodeIndex * effectiveSpacing);
 
             // Set initial positions
             node.x = xPos;
@@ -135,7 +152,6 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         });
 
         // Second pass: adjust parent positions based on children's positions
-        // Process levels from right to left to ensure children are positioned first
         for (let level = maxLevel - 1; level >= 0; level--) {
             const nodesInLevel = nodesByLevel.get(level) || [];
 
@@ -157,16 +173,21 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
                 }
             });
 
-            // Then ensure minimum spacing between nodes in the same level
-            nodesInLevel.sort((a, b) => (a.y || 0) - (b.y || 0));
-            for (let i = 1; i < nodesInLevel.length; i++) {
-                const prevNode = nodesInLevel[i - 1];
-                const currentNode = nodesInLevel[i];
-                const minSpacing = 120; // Minimum vertical spacing
+            // Then ensure even spacing between nodes in the same level
+            if (nodesInLevel.length > 1) {
+                nodesInLevel.sort((a, b) => (a.y || 0) - (b.y || 0));
+                const levelHeight = height * 0.8;
+                const effectiveSpacing = Math.max(
+                    verticalNodeSpacing,
+                    levelHeight / (nodesInLevel.length + 1)
+                );
+                const totalHeight = effectiveSpacing * (nodesInLevel.length - 1);
+                const verticalStart = (height - totalHeight) / 2;
 
-                if ((currentNode.y! - prevNode.y!) < minSpacing) {
-                    currentNode.y = prevNode.y! + minSpacing;
-                }
+                // Redistribute nodes evenly
+                nodesInLevel.forEach((node, index) => {
+                    node.y = verticalStart + (index * effectiveSpacing);
+                });
             }
         }
 
