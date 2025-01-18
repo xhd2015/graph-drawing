@@ -148,6 +148,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
                 const mouseX = event.clientX - rect.left;
                 const mouseY = event.clientY - rect.top;
                 showEdgeTooltip(tooltip, d.subEdges, mouseX - 60, mouseY);
+                tooltipTimer = null;
             }, 500);
         })
         .on("mouseout", (event) => {
@@ -158,9 +159,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
             // Only hide tooltip if not hovering over the tooltip itself
             const e = event.toElement || event.relatedTarget;
             if (!tooltip.node()?.contains?.(e)) {
-                tooltip.transition()
-                    .duration(500)
-                    .style("opacity", 0);
+                hideTooltip(tooltip);
             }
         });
 
@@ -303,21 +302,21 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
     `;
     document.head.appendChild(style);
 }
-function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>, subEdges: SubEdge[] | undefined, x: number, y: number) {
+
+function hideTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>) {
     tooltip.transition()
         .duration(200)
-        .style("opacity", .9);
+        .style("opacity", 0)
+        .end()  // Wait for transition to complete
+        .then(() => {
+            tooltip.style("left", "-1000px"); // Move off-screen
+        });
+}
 
-    // Add mouseout handler to tooltip itself
-    tooltip.on("mouseout", (event) => {
-        const e = event.toElement || event.relatedTarget;
-        const tooltipNode = tooltip.node();
-        if (!tooltipNode?.contains(e) && e !== tooltipNode) {
-            tooltip.transition()
-                .duration(200)
-                .style("opacity", 0);
-        }
-    });
+function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>, subEdges: SubEdge[] | undefined, x: number, y: number) {
+    // Reset tooltip state
+    tooltip.interrupt(); // Stop any ongoing transitions
+    tooltip.style("opacity", 0); // Reset opacity
 
     let tableHTML = `
         <table style="border-collapse: collapse;">
@@ -345,8 +344,21 @@ function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElem
 
     tableHTML += `</table>`;
 
-    // Position tooltip near the edge label
-    tooltip.html(tableHTML)
+    // Position and show tooltip
+    tooltip
+        .html(tableHTML)
         .style("left", `${x}px`)
-        .style("top", `${y + 5}px`); // Position just below the edge label
+        .style("top", `${y + 5}px`)
+        .transition()
+        .duration(200)
+        .style("opacity", 0.9);
+
+    // Add mouseout handler to tooltip itself
+    tooltip.on("mouseout", (event) => {
+        const e = event.toElement || event.relatedTarget;
+        const tooltipNode = tooltip.node();
+        if (!tooltipNode?.contains(e) && e !== tooltipNode) {
+            hideTooltip(tooltip);
+        }
+    });
 }
