@@ -135,7 +135,7 @@ export function Graph() {
                     <button onClick={handleReset}>Reset to Default</button>
                 </div>
             </div>
-            <div ref={graphContainerRef} />
+            <div className='graph-container' ref={graphContainerRef} />
         </div>
     );
 };

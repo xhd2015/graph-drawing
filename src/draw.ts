@@ -22,6 +22,8 @@ let edgeLabelBackground = "white"; // Background color for edge labels
 let disableSimulation = true;
 let disableDrag = false;
 
+let enableZoom = true;
+
 // Format latency for display (converts seconds to appropriate unit)
 function formatLatencyAndIncrease(latencyInSeconds: number, increase: number): string {
     if (isNaN(latencyInSeconds)) {
@@ -45,7 +47,10 @@ function formatLatency(latencyInSeconds: number): string {
     if (latencyInSeconds >= 0.001) {
         return `${(latencyInSeconds * 1000).toFixed(0)}ms`;
     }
-    return `${(latencyInSeconds * 1000000).toFixed(0)}µs`;
+    if (latencyInSeconds >= 0.000001) {
+        return `${(latencyInSeconds * 1000000).toFixed(0)}µs`;
+    }
+    return `${(latencyInSeconds * 1000000000).toFixed(0)}ns`;
 }
 
 function topologicalSort(nodes: Node[], links: Link[]): { levels: Map<number, number>, maxLevel: number } {
@@ -313,28 +318,30 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
     svg.call(zoom);
 
     // Add zoom buttons
-    root.insert("div", "svg")
-        .style("position", "absolute")
-        .style("left", "10px")
-        .style("top", "10px")
-        .selectAll("button")
-        .data([
-            { text: "Zoom In", scale: 1.2 },
-            { text: "Zoom Out", scale: 0.8 },
-            { text: "Reset", scale: 1 }
-        ])
-        .join("button")
-        .text(d => d.text)
-        .style("margin-right", "5px")
-        .on("click", (event, d) => {
-            if (d.text === "Reset") {
-                svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
-            } else {
-                svg.transition().duration(750).call(
-                    zoom.scaleBy, d.scale
-                );
-            }
-        });
+    if (enableZoom) {
+        root.insert("div", "svg")
+            // .style("position", "absolute")
+            .style("left", "10px")
+            .style("top", "10px")
+            .selectAll("button")
+            .data([
+                { text: "Zoom In", scale: 1.2 },
+                { text: "Zoom Out", scale: 0.8 },
+                { text: "Reset", scale: 1 }
+            ])
+            .join("button")
+            .text(d => d.text)
+            .style("margin-right", "5px")
+            .on("click", (event, d) => {
+                if (d.text === "Reset") {
+                    svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+                } else {
+                    svg.transition().duration(750).call(
+                        zoom.scaleBy, d.scale
+                    );
+                }
+            });
+    }
 
     // Define arrow marker
     const defs = svg.append("defs");
@@ -546,11 +553,6 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
             const targetHeight = parseFloat(targetNode?.getAttribute('data-height') || '0') / 2;
 
             if (disableSimulation) {
-                // In static mode, use curved paths between nodes
-                const sourceLevel = levels.get((d.source as any).id) || 0;
-                const targetLevel = levels.get((d.target as any).id) || 0;
-                const levelDiff = targetLevel - sourceLevel;
-
                 // Calculate intersection points with rectangles
                 const sourceIntersect = getIntersection(0, sourceWidth, sourceHeight);
                 const targetIntersect = getIntersection(Math.PI, targetWidth, targetHeight);
@@ -560,12 +562,17 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
                 const endX = (d.target as any).x + targetIntersect.x;
                 const endY = (d.target as any).y + targetIntersect.y;
 
-                // Calculate control points for the curve
+                // Check if nodes are horizontally aligned (same y-coordinate)
+                const isHorizontallyAligned = Math.abs((d.source as any).y - (d.target as any).y) < 1;
+
+                if (isHorizontallyAligned) {
+                    // Use straight line for horizontally aligned nodes
+                    return `M${startX},${startY}L${endX},${endY}`;
+                }
+
+                // For non-aligned nodes, use curved path
                 const dx = endX - startX;
                 const dy = endY - startY;
-                const midX = startX + dx * 0.5;
-
-                // Calculate curve parameters based on the path characteristics
                 const isGoingUp = endY < startY;
                 const verticalDistance = Math.abs(dy);
                 const horizontalDistance = Math.abs(dx);
