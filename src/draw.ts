@@ -18,15 +18,220 @@ function formatLatency(latencyInSeconds: number): string {
     if (latencyInSeconds >= 1) {
         return `${latencyInSeconds}s`;
     }
-    return `${(latencyInSeconds * 1000).toFixed(0)}ms`;
+    if (latencyInSeconds >= 0.001) {
+        return `${(latencyInSeconds * 1000).toFixed(0)}ms`;
+    }
+    return `${(latencyInSeconds * 1000000).toFixed(0)}µs`;
 }
+
+function topologicalSort(nodes: Node[], links: Link[]): { levels: Map<number, number>, maxLevel: number } {
+    // Create adjacency list
+    const graph = new Map<number, number[]>();
+    const inDegree = new Map<number, number>();
+
+    // Initialize
+    nodes.forEach(node => {
+        graph.set(node.id, []);
+        inDegree.set(node.id, 0);
+    });
+
+    // Build graph
+    links.forEach(link => {
+        const source = typeof link.source === 'object' ? (link.source as Node).id : link.source;
+        const target = typeof link.target === 'object' ? (link.target as Node).id : link.target;
+        graph.get(source)?.push(target);
+        inDegree.set(target, (inDegree.get(target) || 0) + 1);
+    });
+
+    // Find nodes with no incoming edges
+    const queue: number[] = [];
+    nodes.forEach(node => {
+        if (inDegree.get(node.id) === 0) {
+            queue.push(node.id);
+        }
+    });
+
+    // Process queue and assign levels
+    const levels = new Map<number, number>();
+    let maxLevel = 0;
+
+    queue.forEach(id => levels.set(id, 0));
+
+    while (queue.length > 0) {
+        const current = queue.shift()!;
+        const currentLevel = levels.get(current)!;
+        maxLevel = Math.max(maxLevel, currentLevel);
+
+        graph.get(current)?.forEach(neighbor => {
+            levels.set(neighbor, Math.max((levels.get(neighbor) || 0), currentLevel + 1));
+            inDegree.set(neighbor, inDegree.get(neighbor)! - 1);
+            if (inDegree.get(neighbor) === 0) {
+                queue.push(neighbor);
+            }
+        });
+    }
+
+    return { levels, maxLevel };
+}
+
+let disableSimulation = true;
+let disableDrag = true;
 
 export function drawGraph(rootSelector: string, graphData: GraphData): void {
     const width = 800;
-    const height = 400;
+    const height = 600; // Increased height for better vertical distribution
     const root = d3.select(rootSelector);
 
-    // Create SVG
+    // Get topological levels
+    const { levels, maxLevel } = topologicalSort(graphData.nodes, graphData.links);
+
+    // Group nodes by level and calculate parent-child relationships
+    const nodesByLevel = new Map<number, Node[]>();
+    const childrenByNode = new Map<number, Node[]>();
+
+    // Initialize nodesByLevel
+    graphData.nodes.forEach(node => {
+        const level = levels.get(node.id) || 0;
+        if (!nodesByLevel.has(level)) {
+            nodesByLevel.set(level, []);
+        }
+        nodesByLevel.get(level)!.push(node);
+        childrenByNode.set(node.id, []);
+    });
+
+    // Build parent-child relationships
+    graphData.links.forEach(link => {
+        const source = typeof link.source === 'object' ? (link.source as Node).id : link.source;
+        const target = typeof link.target === 'object' ? (link.target as Node) : graphData.nodes.find(n => n.id === (link.target as number))!;
+        childrenByNode.get(source)?.push(target);
+    });
+
+    // Initialize simulation only if not disabled
+    let simulation = null;
+
+    if (disableSimulation) {
+        // First pass: position nodes without parents (leaf nodes)
+        graphData.nodes.forEach(node => {
+            const level = levels.get(node.id) || 0;
+            const levelWidth = width / (maxLevel + 1);
+            const nodesInLevel = nodesByLevel.get(level)!;
+            const nodeIndex = nodesInLevel.indexOf(node);
+            const levelHeight = height * 0.8;
+
+            // Increase horizontal spacing between levels
+            const horizontalPadding = 150; // Minimum space between levels
+            const xPos = levelWidth * level + levelWidth / 2 + horizontalPadding * level;
+
+            // Calculate vertical spacing to ensure nodes don't overlap
+            const minVerticalSpacing = 120; // Minimum space between nodes (increased from 100)
+            const totalNodesInLevel = nodesInLevel.length;
+            const totalVerticalSpace = Math.max(levelHeight, (totalNodesInLevel - 1) * minVerticalSpacing);
+            const verticalStart = (height - totalVerticalSpace) / 2;
+            const yPos = verticalStart + (nodeIndex * minVerticalSpacing);
+
+            // Set initial positions
+            node.x = xPos;
+            node.y = yPos;
+        });
+
+        // Second pass: adjust parent positions based on children's positions
+        // Process levels from right to left to ensure children are positioned first
+        for (let level = maxLevel - 1; level >= 0; level--) {
+            const nodesInLevel = nodesByLevel.get(level) || [];
+
+            // First calculate all parent positions based on children
+            nodesInLevel.forEach(node => {
+                const children = childrenByNode.get(node.id) || [];
+                if (children.length > 0) {
+                    // Keep x-position based on level for clarity
+                    const levelWidth = width / (maxLevel + 1);
+                    const horizontalPadding = 150;
+                    node.x = levelWidth * level + levelWidth / 2 + horizontalPadding * level;
+
+                    // Set y-position to center of children
+                    let sumY = 0;
+                    children.forEach(child => {
+                        sumY += child.y!;
+                    });
+                    node.y = sumY / children.length;
+                }
+            });
+
+            // Then ensure minimum spacing between nodes in the same level
+            nodesInLevel.sort((a, b) => (a.y || 0) - (b.y || 0));
+            for (let i = 1; i < nodesInLevel.length; i++) {
+                const prevNode = nodesInLevel[i - 1];
+                const currentNode = nodesInLevel[i];
+                const minSpacing = 120; // Minimum vertical spacing
+
+                if ((currentNode.y! - prevNode.y!) < minSpacing) {
+                    currentNode.y = prevNode.y! + minSpacing;
+                }
+            }
+        }
+
+        // Update link source and target positions
+        graphData.links.forEach(link => {
+            const source = typeof link.source === 'object' ? link.source : graphData.nodes.find(n => n.id === link.source);
+            const target = typeof link.target === 'object' ? link.target : graphData.nodes.find(n => n.id === link.target);
+            if (source) (link as any).source = source;
+            if (target) (link as any).target = target;
+        });
+    } else {
+        // Dynamic simulation setup
+        simulation = d3.forceSimulation(graphData.nodes);
+        simulation.force("link", d3.forceLink(graphData.links)
+            .id(d => (d as any).id)
+            .distance(d => {
+                const textLength = `${formatLatency(d.latency)}`.length * 8;
+                return Math.max(200, textLength + 120);
+            }))
+            .force("charge", d3.forceManyBody()
+                .strength(-3000)
+                .distanceMax(width * 0.7))
+            .force("collide", d3.forceCollide()
+                .radius(80)
+                .strength(1))
+            .force("x", d3.forceX(d => {
+                const level = levels.get((d as Node).id) || 0;
+                const levelWidth = width / (maxLevel + 1);
+                return levelWidth * level + levelWidth / 2;
+            }).strength(1.0))
+            .force("y", d3.forceY(d => {
+                const level = levels.get((d as Node).id) || 0;
+                const nodesInLevel = nodesByLevel.get(level)!;
+                const nodeIndex = nodesInLevel.indexOf(d as Node);
+                const levelHeight = height * 0.8;
+
+                const children = childrenByNode.get((d as Node).id) || [];
+                if (children.length > 0) {
+                    let totalChildPosition = 0;
+                    let validChildCount = 0;
+
+                    children.forEach(child => {
+                        const childLevel = levels.get(child.id)!;
+                        const nodesInChildLevel = nodesByLevel.get(childLevel)!;
+                        const childIndex = nodesInChildLevel.indexOf(child);
+                        if (childIndex !== -1) {
+                            const childPosition = height * 0.1 + (levelHeight / (nodesInChildLevel.length + 1)) * (childIndex + 1);
+                            totalChildPosition += childPosition;
+                            validChildCount++;
+                        }
+                    });
+
+                    if (validChildCount > 0) {
+                        return totalChildPosition / validChildCount;
+                    }
+                }
+
+                const verticalSpacing = levelHeight / (nodesInLevel.length + 1);
+                return height * 0.1 + verticalSpacing * (nodeIndex + 1);
+            }).strength(0.8))
+            .alpha(1)
+            .alphaDecay(0.01);
+    }
+
+    // Create SVG elements
     const svg = root.append("svg")
         .attr("width", "100%")
         .attr("height", "100%")
@@ -84,19 +289,6 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
                 );
             }
         });
-
-    // Create simulation
-    const simulation = d3.forceSimulation(graphData.nodes)
-        .force("link", d3.forceLink(graphData.links)
-            .id(d => (d as any).id)
-            .distance(d => {
-                // Calculate minimum distance needed based on latency text
-                const textLength = `${d.latency}ms`.length * 8; // Approximate width per character
-                const minDistance = textLength + 40; // Add padding
-                return Math.max(100, minDistance); // Use at least 100px or text length + padding
-            }))
-        .force("charge", d3.forceManyBody().strength(-1000))
-        .force("center", d3.forceCenter(width / 2, height / 2));
 
     // Define arrow marker
     const defs = svg.append("defs");
@@ -199,8 +391,11 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         .data(graphData.nodes)
         .join("g")
         .attr("class", "node");
-    // install drag handler
-    installDrag(node, simulation);
+
+    if (!disableDrag && simulation != null) {
+        // install drag handler
+        installDrag(node, simulation);
+    }
 
     // Add background rectangles
     node.append("rect")
@@ -241,8 +436,8 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         }
     });
 
-    // Update tick function
-    simulation.on("tick", () => {
+    // Update positions
+    function updatePositions() {
         link.attr("d", d => {
             const dx = (d.target as any).x - (d.source as any).x;
             const dy = (d.target as any).y - (d.source as any).y;
@@ -258,27 +453,77 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
             const targetWidth = parseFloat(targetNode?.getAttribute('data-width') || '0') / 2;
             const targetHeight = parseFloat(targetNode?.getAttribute('data-height') || '0') / 2;
 
-            // Calculate intersection points with rectangles
-            const sourceIntersect = getIntersection(angle, sourceWidth, sourceHeight);
-            const targetIntersect = getIntersection(angle + Math.PI, targetWidth, targetHeight);
+            if (disableSimulation) {
+                // In static mode, use horizontal lines between nodes
+                const sourceLevel = levels.get((d.source as any).id) || 0;
+                const targetLevel = levels.get((d.target as any).id) || 0;
 
-            const startX = (d.source as any).x + sourceIntersect.x;
-            const startY = (d.source as any).y + sourceIntersect.y;
-            const endX = (d.target as any).x + targetIntersect.x;
-            const endY = (d.target as any).y + targetIntersect.y;
+                // Calculate intersection points with rectangles for horizontal lines
+                // For source: angle = 0 (right)
+                const sourceIntersect = getIntersection(0, sourceWidth, sourceHeight);
+                // For target: angle = Math.PI (left)
+                const targetIntersect = getIntersection(Math.PI, targetWidth, targetHeight);
 
-            return `M${startX},${startY}L${endX},${endY}`;
+                const startX = (d.source as any).x + sourceIntersect.x;
+                const startY = (d.source as any).y + sourceIntersect.y;
+                const endX = (d.target as any).x + targetIntersect.x;
+                const endY = (d.target as any).y + targetIntersect.y;
+
+                return `M${startX},${startY}L${endX},${endY}`;
+            } else {
+                // Dynamic mode - use intersection points based on actual angle
+                const sourceIntersect = getIntersection(angle, sourceWidth, sourceHeight);
+                const targetIntersect = getIntersection(angle + Math.PI, targetWidth, targetHeight);
+
+                const startX = (d.source as any).x + sourceIntersect.x;
+                const startY = (d.source as any).y + sourceIntersect.y;
+                const endX = (d.target as any).x + targetIntersect.x;
+                const endY = (d.target as any).y + targetIntersect.y;
+
+                return `M${startX},${startY}L${endX},${endY}`;
+            }
         });
 
         // Position edge labels at midpoint
         linkLabels.attr("transform", (d: Link) => {
-            const midX = ((d.source as any).x + (d.target as any).x) / 2;
-            const midY = ((d.source as any).y + (d.target as any).y) / 2;
-            return `translate(${midX},${midY})`;
+            if (disableSimulation) {
+                // In static mode, calculate the exact middle point of the edge path
+                const sourceNode = node.filter(n => n.id === (d.source as any).id).node() as Element;
+                const targetNode = node.filter(n => n.id === (d.target as any).id).node() as Element;
+                const sourceWidth = parseFloat(sourceNode?.getAttribute('data-width') || '0') / 2;
+                const targetWidth = parseFloat(targetNode?.getAttribute('data-width') || '0') / 2;
+
+                // Calculate start and end points using intersection with rectangles
+                const sourceIntersect = getIntersection(0, sourceWidth, sourceWidth);
+                const targetIntersect = getIntersection(Math.PI, targetWidth, targetWidth);
+
+                const startX = (d.source as any).x + sourceIntersect.x;
+                const startY = (d.source as any).y + sourceIntersect.y;
+                const endX = (d.target as any).x + targetIntersect.x;
+                const endY = (d.target as any).y + targetIntersect.y;
+
+                // Calculate middle point of the actual edge
+                const midX = (startX + endX) / 2;
+                const midY = (startY + endY) / 2;
+
+                return `translate(${midX},${midY})`;
+            } else {
+                // Dynamic mode - use node centers
+                const midX = ((d.source as any).x + (d.target as any).x) / 2;
+                const midY = ((d.source as any).y + (d.target as any).y) / 2;
+                return `translate(${midX},${midY})`;
+            }
         });
 
         node.attr("transform", d => `translate(${d.x!},${d.y!})`);
-    });
+    }
+
+    if (simulation) {
+        simulation.on("tick", updatePositions);
+    } else {
+        // Call once for static layout
+        updatePositions();
+    }
 
     // Update styles
     const style = document.createElement('style');
