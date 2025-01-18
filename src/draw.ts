@@ -19,12 +19,19 @@ const COLORS = {
 let verticalNodeSpacing = 80; // Minimum vertical space between nodes in pixels
 let edgeLabelBackground = "white"; // Background color for edge labels
 
+let disableSimulation = true;
+let disableDrag = false;
+
 // Format latency for display (converts seconds to appropriate unit)
 function formatLatencyAndIncrease(latencyInSeconds: number, increase: number): string {
     if (isNaN(latencyInSeconds)) {
         return "NaN"
     }
-    let sign = increase >= 0 ? "+" : "-"
+    let sign = "+"
+    if (increase < 0) {
+        sign = "-"
+        increase = -increase
+    }
     return `${formatLatency(latencyInSeconds)} (${sign}${formatLatency(increase)})`
 }
 
@@ -90,9 +97,6 @@ function topologicalSort(nodes: Node[], links: Link[]): { levels: Map<number, nu
 
     return { levels, maxLevel };
 }
-
-let disableSimulation = true;
-let disableDrag = true;
 
 export function drawGraph(rootSelector: string, graphData: GraphData): void {
     const width = 800;
@@ -292,6 +296,13 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
     const zoom = d3.zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.1, 4])
         .filter(event => {
+            // Allow node dragging by checking if the target is a node
+            const isNodeDrag = event.target.closest('.node') !== null;
+            if (isNodeDrag && event.type === 'mousedown') {
+                console.log("this is a node drag", isNodeDrag, event.type)
+                return false;
+            }
+
             // Only allow zoom with Ctrl/Cmd + wheel, but allow panning with drag
             return (!event.ctrlKey && !event.metaKey && event.type === 'mousedown') || // Allow panning
                 ((event.ctrlKey || event.metaKey) && event.type === 'wheel');      // Allow zooming with Ctrl/Cmd
@@ -432,11 +443,35 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         .selectAll("g")
         .data(graphData.nodes)
         .join("g")
-        .attr("class", "node");
+        .attr("class", "node")
+        .style("pointer-events", "all");
 
-    if (!disableDrag && simulation != null) {
-        // install drag handler
-        installDrag(node, simulation);
+    // Add drag behavior for both static and dynamic modes
+    if (!disableDrag) {
+        if (simulation) {
+            // Dynamic mode - use simulation-based drag
+            installDrag(node, simulation);
+        } else {
+            // Static mode - use simple drag
+
+            const drag = d3.drag<SVGGElement, Node>()
+                .on("start", (event, d) => {
+                    console.log("drag start", event, d);
+                })
+                .on("drag", (event, d) => {
+                    console.log("dragging", event, d);
+                    d.x = event.x;
+                    d.y = event.y;
+                    // Update all positions immediately
+                    node.filter(n => n === d)
+                        .attr("transform", d => `translate(${d.x!},${d.y!})`);
+                    updatePositions();
+                })
+                .on("end", (event, d) => {
+                    console.log("drag end", event, d);
+                });
+            node.call(drag as any);
+        }
     }
 
     // Add background rectangles
