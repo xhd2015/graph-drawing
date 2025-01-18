@@ -8,6 +8,7 @@ const COLORS = {
     BORDER: "#666",
     EDGE_HEALTHY: "#90EE90",
     EDGE_SLOW: "#ff7f7f",
+    NODE_NORMAL: "#f1f1f1", // light grey
     NODE_HEALTHY: "#90EE90",
     NODE_ERROR: "#ff7f7f",
     NODE_SLOW: "#ffd700",
@@ -426,7 +427,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         .style("fill", d => {
             if (d.errorRate && d.errorRate > 0.01) return COLORS.NODE_ERROR;  // Red for high error
             if (d.latency && d.latency > 0.1) return COLORS.NODE_SLOW;     // Yellow for high latency
-            return COLORS.NODE_HEALTHY;                          // Green for healthy
+            return COLORS.NODE_NORMAL;                          // Green for healthy
         });
 
     // Add text labels
