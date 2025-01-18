@@ -20,7 +20,18 @@ let verticalNodeSpacing = 80; // Minimum vertical space between nodes in pixels
 let edgeLabelBackground = "white"; // Background color for edge labels
 
 // Format latency for display (converts seconds to appropriate unit)
+function formatLatencyAndIncrease(latencyInSeconds: number, increase: number): string {
+    if (isNaN(latencyInSeconds)) {
+        return "NaN"
+    }
+    let sign = increase >= 0 ? "+" : "-"
+    return `${formatLatency(latencyInSeconds)} (${sign}${formatLatency(increase)})`
+}
+
 function formatLatency(latencyInSeconds: number): string {
+    if (isNaN(latencyInSeconds)) {
+        return "NaN"
+    }
     if (latencyInSeconds >= 1) {
         return `${latencyInSeconds}s`;
     }
@@ -207,7 +218,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         simulation.force("link", d3.forceLink(graphData.links)
             .id(d => (d as any).id)
             .distance(d => {
-                const textLength = `${formatLatency(d.latency)}`.length * 8;
+                const textLength = `${formatLatency(d.latency.value)}`.length * 8;
                 return Math.max(200, textLength + 120);
             }))
             .force("charge", d3.forceManyBody()
@@ -334,7 +345,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         .selectAll("path")
         .data(graphData.links)
         .join("path")
-        .attr("stroke", d => d.latency > 0.1 ? COLORS.EDGE_SLOW : COLORS.EDGE_HEALTHY)
+        .attr("stroke", d => d.latency.increase >= 0.05 ? COLORS.EDGE_SLOW : COLORS.EDGE_HEALTHY)
         .attr("stroke-width", 1.5)
         .attr("fill", "none")
         .attr("marker-end", "url(#arrow)")
@@ -394,7 +405,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
 
     // Add text
     const linkTexts = linkLabels.append("text")
-        .text(d => formatLatency(d.latency))
+        .text(d => formatLatencyAndIncrease(d.latency.value, d.latency.increase))
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "central")
         .attr("font-size", "10px");

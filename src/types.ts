@@ -1,6 +1,14 @@
 import type { SimulationNodeDatum, SimulationLinkDatum } from 'd3';
 
 type NodeId = number;
+
+export interface Comparison {
+    baseValue: number
+    value: number
+    increase: number
+    increasePercent: number
+}
+
 export interface Node extends SimulationNodeDatum {
     id: NodeId;
     name: string;
@@ -25,7 +33,7 @@ export interface Link extends SimulationLinkDatum<Node> {
     target: NodeId;
     value: number;
     errorRate: number;
-    latency: number;
+    latency: Comparison;
     subEdges?: SubEdge[];
 }
 

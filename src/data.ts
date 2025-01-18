@@ -15,7 +15,12 @@ const graphData: GraphData = {
             target: 2,
             value: 5,
             errorRate: 0.002,
-            latency: 0.045,
+            latency: {
+                baseValue: 0,
+                value: 0.045,
+                increase: 0,
+                increasePercent: 0
+            },
             subEdges: [
                 { name: "Auth-Load-Balancer", value: 2, errorRate: 0.001, latency: 0.015 },
                 { name: "Auth-Load-Balancer", value: 2, errorRate: 0.002, latency: 0.02 },
@@ -28,7 +33,12 @@ const graphData: GraphData = {
             target: 5,
             value: 8,
             errorRate: 0.001,
-            latency: 0.06,
+            latency: {
+                baseValue: 0,
+                value: 0.06,
+                increase: 0,
+                increasePercent: 0
+            },
             subEdges: [
                 { name: "Products-API", value: 3, errorRate: 0.0005, latency: 0.01 },
                 { name: "Products-API", value: 2, errorRate: 0.001, latency: 0.03 },
@@ -40,16 +50,49 @@ const graphData: GraphData = {
             target: 3,
             value: 3,
             errorRate: 0.02,
-            latency: 0.15,
+            latency: {
+                baseValue: 0,
+                value: 0.15,
+                increase: 0,
+                increasePercent: 0
+            },
             subEdges: [
                 { name: "Users-Gateway", value: 2, errorRate: 0.015, latency: 0.07 },
                 { name: "Users-Service", value: 2, errorRate: 0.005, latency: 0.06 }
             ]
         },
-        { source: 3, target: 6, value: 4, errorRate: 0.001, latency: 0.03 },
-        { source: 5, target: 6, value: 6, errorRate: 0.001, latency: 0.025 },
-        { source: 1, target: 4, value: 4, errorRate: 0.005, latency: 0.09 },
-        { source: 4, target: 6, value: 3, errorRate: 0.012, latency: 0.11 }
+        {
+            source: 3, target: 6, value: 4, errorRate: 0.001, latency: {
+                baseValue: 0,
+                value: 0.03,
+                increase: 0,
+                increasePercent: 0
+            }
+        },
+        {
+            source: 5, target: 6, value: 6, errorRate: 0.001, latency: {
+                baseValue: 0,
+                value: 0.025,
+                increase: 0,
+                increasePercent: 0
+            }
+        },
+        {
+            source: 1, target: 4, value: 4, errorRate: 0.005, latency: {
+                baseValue: 0,
+                value: 0.09,
+                increase: 0,
+                increasePercent: 0
+            }
+        },
+        {
+            source: 4, target: 6, value: 3, errorRate: 0.012, latency: {
+                baseValue: 0,
+                value: 0.11,
+                increase: 0,
+                increasePercent: 0
+            }
+        }
     ]
 };
 
