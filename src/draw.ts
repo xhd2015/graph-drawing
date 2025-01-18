@@ -98,10 +98,10 @@ function topologicalSort(nodes: Node[], links: Link[]): { levels: Map<number, nu
     return { levels, maxLevel };
 }
 
-export function drawGraph(rootSelector: string, graphData: GraphData): void {
+export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void {
     const width = 800;
-    const height = 600; // Increased height for better vertical distribution
-    const root = d3.select(rootSelector);
+    const height = 600;
+    const root = d3.select(rootElement);
 
     // Get topological levels
     const { levels, maxLevel } = topologicalSort(graphData.nodes, graphData.links);
@@ -693,7 +693,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
     document.head.appendChild(style);
 }
 
-function hideTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>) {
+function hideTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, any, any>) {
     tooltip.transition()
         .duration(200)
         .style("opacity", 0)
@@ -703,7 +703,7 @@ function hideTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement,
         });
 }
 
-function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>, subEdges: SubEdge[] | undefined, x: number, y: number) {
+function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, any, any>, subEdges: SubEdge[] | undefined, x: number, y: number) {
     // Reset tooltip state
     tooltip.interrupt(); // Stop any ongoing transitions
     tooltip.style("opacity", 0); // Reset opacity
@@ -760,7 +760,7 @@ function hasAnyHighlight(node: Node): boolean {
     return node.metrics?.some(metric => getHighlightType(metric) == HighlightType.High)
 }
 
-function showNodeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>, node: Node, x: number, y: number) {
+function showNodeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, any, any>, node: Node, x: number, y: number) {
     // Only show tooltip if metrics exist
     if (!node.metrics?.length) {
         return;

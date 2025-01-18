@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { drawGraph } from './draw';
 import defaultGraphData from './data';
 import './Graph.css';
@@ -8,10 +8,13 @@ export function Graph() {
     const [urlInput, setUrlInput] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const graphContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         // Initialize graph with default data
-        drawGraph("#graphContainer", defaultGraphData);
+        if (graphContainerRef.current) {
+            drawGraph(graphContainerRef.current, defaultGraphData);
+        }
 
         // Restore last used URL if exists
         const lastUrl = localStorage.getItem('lastUrl');
@@ -60,13 +63,11 @@ export function Graph() {
             validateGraphData(data);
             setJsonInput(JSON.stringify(data, null, 2));
 
-            const graphContainer = document.getElementById('graphContainer');
-            if (graphContainer) {
-                graphContainer.innerHTML = '';
-                drawGraph("#graphContainer", data);
+            if (graphContainerRef.current) {
+                graphContainerRef.current.innerHTML = '';
+                drawGraph(graphContainerRef.current, data);
             }
 
-            // Save URL to localStorage on successful load
             localStorage.setItem('lastUrl', url);
         } catch (error) {
             setError(`Error loading from URL: ${error instanceof Error ? error.message : String(error)}`);
@@ -81,10 +82,9 @@ export function Graph() {
         setError('');
         localStorage.removeItem('lastUrl');
 
-        const graphContainer = document.getElementById('graphContainer');
-        if (graphContainer) {
-            graphContainer.innerHTML = '';
-            drawGraph("#graphContainer", defaultGraphData);
+        if (graphContainerRef.current) {
+            graphContainerRef.current.innerHTML = '';
+            drawGraph(graphContainerRef.current, defaultGraphData);
         }
     };
 
@@ -94,10 +94,9 @@ export function Graph() {
             const graphData = JSON.parse(jsonInput);
             validateGraphData(graphData);
 
-            const graphContainer = document.getElementById('graphContainer');
-            if (graphContainer) {
-                graphContainer.innerHTML = '';
-                drawGraph("#graphContainer", graphData);
+            if (graphContainerRef.current) {
+                graphContainerRef.current.innerHTML = '';
+                drawGraph(graphContainerRef.current, graphData);
             }
         } catch (error) {
             setError(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -128,7 +127,7 @@ export function Graph() {
                     value={jsonInput}
                     onChange={(e) => setJsonInput(e.target.value)}
                     rows={20}
-                    placeholder="Paste your graph data here2..."
+                    placeholder="Paste your graph data here..."
                 />
                 {error && <div className="error" style={{ display: 'block' }}>{error}</div>}
                 <div className="button-group">
@@ -136,7 +135,7 @@ export function Graph() {
                     <button onClick={handleReset}>Reset to Default</button>
                 </div>
             </div>
-            <div id="graphContainer"></div>
+            <div ref={graphContainerRef} />
         </div>
     );
 };

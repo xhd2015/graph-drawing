@@ -9,9 +9,15 @@
             "esnext"
         ],
         // Modules
-        "module": "ESNext",
-        "moduleResolution": "bundler",
+        "module": "ES2022",
+        "moduleResolution": "node",
         "esModuleInterop": true,
+        "noEmit": true,
+        "allowImportingTsExtensions": true,
+        "allowJs": true,
+        "types": [
+            "d3"
+        ],
         // Type Checking
         "strict": true,
         "noImplicitAny": true,
