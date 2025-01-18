@@ -16,6 +16,7 @@ const COLORS = {
 
 // Layout configuration
 let verticalNodeSpacing = 80; // Minimum vertical space between nodes in pixels
+let edgeLabelBackground = "white"; // Background color for edge labels
 
 // Format latency for display (converts seconds to appropriate unit)
 function formatLatency(latencyInSeconds: number): string {
@@ -379,7 +380,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
 
     // Add background rectangle for better readability
     linkLabels.append("rect")
-        .attr("fill", "white")
+        .attr("fill", edgeLabelBackground)
         .attr("rx", 3)
         .attr("ry", 3);
 
@@ -479,6 +480,7 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
                 // In static mode, use curved paths between nodes
                 const sourceLevel = levels.get((d.source as any).id) || 0;
                 const targetLevel = levels.get((d.target as any).id) || 0;
+                const levelDiff = targetLevel - sourceLevel;
 
                 // Calculate intersection points with rectangles
                 const sourceIntersect = getIntersection(0, sourceWidth, sourceHeight);
@@ -491,19 +493,31 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
 
                 // Calculate control points for the curve
                 const dx = endX - startX;
+                const dy = endY - startY;
                 const midX = startX + dx * 0.5;
 
-                // Determine if we need to route above or below based on relative positions
+                // Calculate curve parameters based on the path characteristics
                 const isGoingUp = endY < startY;
-                const controlPointOffset = Math.min(Math.abs(dx) * 0.2, 50); // Cap the curve height
-                const cp1x = startX + dx * 0.25;
-                const cp2x = startX + dx * 0.75;
-                const cpy = isGoingUp ?
-                    Math.min(startY, endY) - controlPointOffset :
-                    Math.max(startY, endY) + controlPointOffset;
+                const verticalDistance = Math.abs(dy);
+                const horizontalDistance = Math.abs(dx);
+
+                // Make the curve more pronounced based on the distance and level difference
+                const curveStrength = Math.min(
+                    Math.max(horizontalDistance * 0.3, verticalDistance * 0.5),
+                    150 // Maximum curve offset
+                );
+
+                // Position control points at 1/3 and 2/3 of the path
+                const cp1x = startX + dx * 0.33;
+                const cp2x = startX + dx * 0.67;
+
+                // Adjust control points vertically based on path direction
+                const controlPointOffset = isGoingUp ? -curveStrength : curveStrength;
+                const cp1y = startY + (isGoingUp ? -curveStrength / 2 : curveStrength / 2);
+                const cp2y = endY + (isGoingUp ? -curveStrength / 2 : curveStrength / 2);
 
                 // Use cubic Bézier curve for smoother paths
-                return `M${startX},${startY} C${cp1x},${startY} ${cp2x},${endY} ${endX},${endY}`;
+                return `M${startX},${startY} C${cp1x},${cp1y} ${cp2x},${cp2y} ${endX},${endY}`;
             } else {
                 // Dynamic mode - use intersection points based on actual angle
                 const sourceIntersect = getIntersection(angle, sourceWidth, sourceHeight);
@@ -521,24 +535,52 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
         // Position edge labels at midpoint
         linkLabels.attr("transform", (d: Link) => {
             if (disableSimulation) {
-                // In static mode, calculate the exact middle point of the edge path
+                // In static mode, calculate the exact middle point of the curved path
                 const sourceNode = node.filter(n => n.id === (d.source as any).id).node() as Element;
                 const targetNode = node.filter(n => n.id === (d.target as any).id).node() as Element;
                 const sourceWidth = parseFloat(sourceNode?.getAttribute('data-width') || '0') / 2;
                 const targetWidth = parseFloat(targetNode?.getAttribute('data-width') || '0') / 2;
+                const sourceHeight = parseFloat(sourceNode?.getAttribute('data-height') || '0') / 2;
+                const targetHeight = parseFloat(targetNode?.getAttribute('data-height') || '0') / 2;
 
-                // Calculate start and end points using intersection with rectangles
-                const sourceIntersect = getIntersection(0, sourceWidth, sourceWidth);
-                const targetIntersect = getIntersection(Math.PI, targetWidth, targetWidth);
+                // Calculate intersection points
+                const sourceIntersect = getIntersection(0, sourceWidth, sourceHeight);
+                const targetIntersect = getIntersection(Math.PI, targetWidth, targetHeight);
 
                 const startX = (d.source as any).x + sourceIntersect.x;
                 const startY = (d.source as any).y + sourceIntersect.y;
                 const endX = (d.target as any).x + targetIntersect.x;
                 const endY = (d.target as any).y + targetIntersect.y;
 
-                // Calculate middle point of the actual edge
-                const midX = (startX + endX) / 2;
-                const midY = (startY + endY) / 2;
+                // Use the same curve calculation as the edge path
+                const dx = endX - startX;
+                const dy = endY - startY;
+                const verticalDistance = Math.abs(dy);
+                const horizontalDistance = Math.abs(dx);
+                const isGoingUp = endY < startY;
+
+                // Calculate curve strength
+                const curveStrength = Math.min(
+                    Math.max(horizontalDistance * 0.3, verticalDistance * 0.5),
+                    150
+                );
+
+                // Calculate control points
+                const cp1x = startX + dx * 0.33;
+                const cp2x = startX + dx * 0.67;
+                const cp1y = startY + (isGoingUp ? -curveStrength / 2 : curveStrength / 2);
+                const cp2y = endY + (isGoingUp ? -curveStrength / 2 : curveStrength / 2);
+
+                // Calculate point at t=0.5 on the cubic Bezier curve
+                const t = 0.5;
+                const t2 = t * t;
+                const t3 = t2 * t;
+                const mt = 1 - t;
+                const mt2 = mt * mt;
+                const mt3 = mt2 * mt;
+
+                const midX = mt3 * startX + 3 * mt2 * t * cp1x + 3 * mt * t2 * cp2x + t3 * endX;
+                const midY = mt3 * startY + 3 * mt2 * t * cp1y + 3 * mt * t2 * cp2y + t3 * endY;
 
                 return `translate(${midX},${midY})`;
             } else {
