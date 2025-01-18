@@ -18,3 +18,31 @@ A TypeScript project that visualizes network dependencies and their metrics usin
 ```sh
 npm run dev
 ```
+
+# Publish
+Update version in package.json, then:
+
+```sh
+npm run build-for-publish
+
+( cd publish && npm publish )
+```
+
+reference:
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/graph-drawing@1.0.1/style.css">
+<script type="module">
+  import { renderComponent, Graph } from 'https://cdn.jsdelivr.net/npm/graph-drawing@1.0.1/index.js';
+  renderComponent(document.getElementById('root'), Graph);
+</script>
+```
+
+Verify at local:
+```sh
+npx http-server -p 3000 -c-1 -o
+
+# replace ref in demo-publish.html
+
+# visit http://127.0.0.1:3000/demo-publish.html
+```

@@ -14,12 +14,10 @@
 <body>
     <div id="root"></div>
     <script type="module">
-        import React from 'react';
-        import ReactDOM from 'react-dom/client';
+        import { renderComponent } from './src/index.ts';
         import { Graph } from './src/Graph.tsx';
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(Graph));
+        renderComponent(document.getElementById('root'), Graph);
     </script>
 </body>
 

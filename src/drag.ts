@@ -7,7 +7,7 @@ export function installDrag(node: any, simulation: d3.Simulation<Node, undefined
 }
 
 // Drag functionality
-export function drag(simulation: d3.Simulation<Node, undefined>): (selection: d3.Selection<d3.BaseType | SVGGElement, Node, Element, any>, ...args: any[]) => void {
+export function drag(simulation: d3.Simulation<Node, undefined>): (selection: d3.Selection<any, any, any, any>, ...args: any[]) => void {
     function dragstarted(event: any) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
         event.subject.fx = event.subject.x;

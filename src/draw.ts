@@ -386,31 +386,19 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
             // Highlight the corresponding edge
             highlighLink(link, d);
 
-            if (tooltipTimer) {
-                clearTimeout(tooltipTimer);
-            }
-            tooltipTimer = window.setTimeout(() => {
-                // Get the current zoom transform
-                const transform = d3.zoomTransform(svg.node()!);
-                // Get mouse position relative to the container
-                const rect = (root.node() as Element).getBoundingClientRect();
-                const mouseX = event.clientX - rect.left;
-                const mouseY = event.clientY - rect.top;
-                showEdgeTooltip(tooltip, d.subEdges, mouseX - 60, mouseY);
-                tooltipTimer = null;
-            }, 500);
+            const rect = (root.node() as Element).getBoundingClientRect();
+            const mouseX = event.clientX
+            // - rect.left;
+            const mouseY = event.clientY
+            // - rect.top;
+            showEdgeTooltip(tooltip, d.subEdges, mouseX, mouseY);
         })
         .on("mouseout", (event, d) => {
             // Remove edge highlight
             unhighlightLink(link, d);
 
-            if (tooltipTimer) {
-                clearTimeout(tooltipTimer);
-                tooltipTimer = null;
-            }
-            // Only hide tooltip if not hovering over the tooltip itself
             const e = event.toElement || event.relatedTarget;
-            if (!tooltip.node()?.contains?.(e)) {
+            if (!tooltip.node()?.contains(e)) {
                 hideTooltip(tooltip);
             }
         });
@@ -611,7 +599,7 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
         // Position edge labels at midpoint
         linkLabels.attr("transform", (d: Link) => {
             if (disableSimulation) {
-                // In static mode, calculate the exact middle point of the curved path
+                // Calculate intersection points with rectangles
                 const sourceNode = node.filter(n => n.id === (d.source as any).id).node() as Element;
                 const targetNode = node.filter(n => n.id === (d.target as any).id).node() as Element;
                 const sourceWidth = parseFloat(sourceNode?.getAttribute('data-width') || '0') / 2;
@@ -628,7 +616,17 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
                 const endX = (d.target as any).x + targetIntersect.x;
                 const endY = (d.target as any).y + targetIntersect.y;
 
-                // Use the same curve calculation as the edge path
+                // Check if nodes are horizontally aligned
+                const isHorizontallyAligned = Math.abs((d.source as any).y - (d.target as any).y) < 1;
+
+                if (isHorizontallyAligned) {
+                    // For straight lines, position label at midpoint
+                    const midX = (startX + endX) / 2;
+                    const midY = (startY + endY) / 2;
+                    return `translate(${midX},${midY})`;
+                }
+
+                // For curved paths, use the same calculation as before
                 const dx = endX - startX;
                 const dy = endY - startY;
                 const verticalDistance = Math.abs(dy);

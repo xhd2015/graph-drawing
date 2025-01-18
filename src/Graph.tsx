@@ -2,20 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { drawGraph } from './draw';
 import defaultGraphData from './data';
 import './Graph.css';
+import { CallGraph } from './CallGraph';
 
 export function Graph() {
     const [jsonInput, setJsonInput] = useState(JSON.stringify(defaultGraphData, null, 2));
     const [urlInput, setUrlInput] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const graphContainerRef = useRef<HTMLDivElement>(null);
+
+    const [graphData, setGraphData] = useState(defaultGraphData);
 
     useEffect(() => {
-        // Initialize graph with default data
-        if (graphContainerRef.current) {
-            drawGraph(graphContainerRef.current, defaultGraphData);
-        }
-
         // Restore last used URL if exists
         const lastUrl = localStorage.getItem('lastUrl');
         if (lastUrl) {
@@ -63,10 +60,7 @@ export function Graph() {
             validateGraphData(data);
             setJsonInput(JSON.stringify(data, null, 2));
 
-            if (graphContainerRef.current) {
-                graphContainerRef.current.innerHTML = '';
-                drawGraph(graphContainerRef.current, data);
-            }
+            setGraphData(data);
 
             localStorage.setItem('lastUrl', url);
         } catch (error) {
@@ -82,10 +76,7 @@ export function Graph() {
         setError('');
         localStorage.removeItem('lastUrl');
 
-        if (graphContainerRef.current) {
-            graphContainerRef.current.innerHTML = '';
-            drawGraph(graphContainerRef.current, defaultGraphData);
-        }
+        setGraphData(defaultGraphData);
     };
 
     const handleRender = () => {
@@ -94,10 +85,7 @@ export function Graph() {
             const graphData = JSON.parse(jsonInput);
             validateGraphData(graphData);
 
-            if (graphContainerRef.current) {
-                graphContainerRef.current.innerHTML = '';
-                drawGraph(graphContainerRef.current, graphData);
-            }
+            setGraphData(graphData);
         } catch (error) {
             setError(`Error: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -135,7 +123,7 @@ export function Graph() {
                     <button onClick={handleReset}>Reset to Default</button>
                 </div>
             </div>
-            <div className='graph-container' ref={graphContainerRef} />
+            <CallGraph graphData={graphData} />
         </div>
     );
 };
