@@ -141,8 +141,13 @@ export function drawGraph(rootSelector: string, graphData: GraphData): void {
                 clearTimeout(tooltipTimer);
             }
             tooltipTimer = window.setTimeout(() => {
-                showEdgeTooltip(tooltip, d.subEdges, event.pageX, event.pageY);
-                tooltipTimer = null;
+                // Get the current zoom transform
+                const transform = d3.zoomTransform(svg.node()!);
+                // Get mouse position relative to the container
+                const rect = (root.node() as Element).getBoundingClientRect();
+                const mouseX = event.clientX - rect.left;
+                const mouseY = event.clientY - rect.top;
+                showEdgeTooltip(tooltip, d.subEdges, mouseX - 60, mouseY);
             }, 500);
         })
         .on("mouseout", (event) => {
@@ -340,7 +345,8 @@ function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElem
 
     tableHTML += `</table>`;
 
+    // Position tooltip near the edge label
     tooltip.html(tableHTML)
-        .style("left", (x + 10) + "px")
-        .style("top", (y - 28) + "px");
+        .style("left", `${x}px`)
+        .style("top", `${y + 5}px`); // Position just below the edge label
 }
