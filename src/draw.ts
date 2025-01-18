@@ -13,6 +13,14 @@ const COLORS = {
     NODE_SLOW: "#ffd700",
 } as const;
 
+// Format latency for display (converts seconds to appropriate unit)
+function formatLatency(latencyInSeconds: number): string {
+    if (latencyInSeconds >= 1) {
+        return `${latencyInSeconds}s`;
+    }
+    return `${(latencyInSeconds * 1000).toFixed(0)}ms`;
+}
+
 export function drawGraph(graphData: GraphData): void {
     const width = 800;
     const height = 400;
@@ -104,7 +112,7 @@ export function drawGraph(graphData: GraphData): void {
         .selectAll("path")
         .data(graphData.links)
         .join("path")
-        .attr("stroke", d => d.latency > 100 ? COLORS.EDGE_SLOW : COLORS.EDGE_HEALTHY)
+        .attr("stroke", d => d.latency > 0.1 ? COLORS.EDGE_SLOW : COLORS.EDGE_HEALTHY)
         .attr("stroke-width", 1.5)
         .attr("fill", "none")
         .attr("marker-end", "url(#arrow)")
@@ -153,7 +161,7 @@ export function drawGraph(graphData: GraphData): void {
 
     // Add text
     const linkTexts = linkLabels.append("text")
-        .text(d => `${d.latency}ms`)
+        .text(d => formatLatency(d.latency))
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "central")
         .attr("font-size", "10px");
@@ -191,7 +199,7 @@ export function drawGraph(graphData: GraphData): void {
         .attr("ry", 4)
         .style("fill", d => {
             if (d.errorRate && d.errorRate > 0.01) return COLORS.NODE_ERROR;  // Red for high error
-            if (d.latency && d.latency > 100) return COLORS.NODE_SLOW;     // Yellow for high latency
+            if (d.latency && d.latency > 0.1) return COLORS.NODE_SLOW;     // Yellow for high latency
             return COLORS.NODE_HEALTHY;                          // Green for healthy
         });
 
@@ -313,7 +321,7 @@ function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, HTMLElem
             tableHTML += `
                 <tr>
                     <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${edge.name}</td>
-                    <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${edge.latency}ms</td>
+                    <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatLatency(edge.latency)}</td>
                     <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${(edge.errorRate * 100).toFixed(3)}%</td>
                 </tr>`;
         });

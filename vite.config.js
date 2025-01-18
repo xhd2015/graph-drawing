@@ -5,6 +5,6 @@ export default defineConfig({
         outDir: 'dist',
     },
     server: {
-        open: '/d3_graph.html'
+        open: '/index.html'
     }
 }); 
