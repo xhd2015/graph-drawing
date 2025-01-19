@@ -2,6 +2,12 @@ import type { SimulationNodeDatum, SimulationLinkDatum } from 'd3';
 
 type NodeId = number;
 
+export interface GraphData {
+    grafanaLink: string;
+    nodes: Node[];
+    links: Link[];
+}
+
 export interface Comparison {
     baseValue: number
     value: number
@@ -26,6 +32,7 @@ export enum NodeMetricsType {
 export interface NodeMetrics {
     metricsType: NodeMetricsType
     comparison: Comparison
+    grafanaLink: string
 }
 
 export interface Node extends SimulationNodeDatum {
@@ -47,7 +54,7 @@ export interface SubEdge {
     name: string
     value: number;
     errorRate: number;
-    latency: number;
+    latency: Comparison;
 }
 
 export interface Link extends SimulationLinkDatum<Node> {
@@ -58,8 +65,3 @@ export interface Link extends SimulationLinkDatum<Node> {
     latency: Comparison;
     subEdges?: SubEdge[];
 }
-
-export interface GraphData {
-    nodes: Node[];
-    links: Link[];
-} 

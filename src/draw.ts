@@ -3,6 +3,10 @@ import { GraphData, Link, Node, NodeMetrics, NodeMetricsType, SubEdge } from "./
 import { installDrag } from './drag';
 import { getIntersection } from './intersection';
 import { highlighLink, unhighlightLink } from './link';
+import { formatChange, formatSeconds, formatValue, ValueType } from './numbers';
+import { renderToString } from 'react-dom/server';
+import { GrafanaIcon } from './GrafanaIcon';
+import { createElement } from 'react';
 
 // Color constants
 const COLORS = {
@@ -34,23 +38,7 @@ function formatLatencyAndIncrease(latencyInSeconds: number, increase: number): s
         sign = "-"
         increase = -increase
     }
-    return `${formatLatency(latencyInSeconds)} (${sign}${formatLatency(increase)})`
-}
-
-function formatLatency(latencyInSeconds: number): string {
-    if (isNaN(latencyInSeconds)) {
-        return "NaN"
-    }
-    if (latencyInSeconds >= 1) {
-        return `${latencyInSeconds}s`;
-    }
-    if (latencyInSeconds >= 0.001) {
-        return `${(latencyInSeconds * 1000).toFixed(0)}ms`;
-    }
-    if (latencyInSeconds >= 0.000001) {
-        return `${(latencyInSeconds * 1000000).toFixed(0)}µs`;
-    }
-    return `${(latencyInSeconds * 1000000000).toFixed(0)}ns`;
+    return `${formatSeconds(latencyInSeconds)} (${formatChange(increase, ValueType.Seconds)})`
 }
 
 function topologicalSort(nodes: Node[], links: Link[]): { levels: Map<number, number>, maxLevel: number } {
@@ -227,7 +215,7 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
         simulation.force("link", d3.forceLink(graphData.links)
             .id(d => (d as any).id)
             .distance(d => {
-                const textLength = `${formatLatency(d.latency.value)}`.length * 8;
+                const textLength = `${formatSeconds(d.latency.value)} `.length * 8;
                 return Math.max(200, textLength + 120);
             }))
             .force("charge", d3.forceManyBody()
@@ -279,7 +267,7 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
     const svg = root.append("svg")
         .attr("width", "100%")
         .attr("height", "100%")
-        .attr("viewBox", `0 0 ${width} ${height}`)
+        .attr("viewBox", `0 0 ${width} ${height} `)
         .style("max-width", "100%")
         .style("margin", "20px");
 
@@ -471,7 +459,7 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
                     d.y = event.y;
                     // Update all positions immediately
                     node.filter(n => n === d)
-                        .attr("transform", d => `translate(${d.x!},${d.y!})`);
+                        .attr("transform", d => `translate(${d.x!}, ${d.y!})`);
                     updatePositions();
                 })
                 .on("end", (event, d) => {
@@ -555,7 +543,7 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
 
                 if (isHorizontallyAligned) {
                     // Use straight line for horizontally aligned nodes
-                    return `M${startX},${startY}L${endX},${endY}`;
+                    return `M${startX},${startY}L${endX},${endY} `;
                 }
 
                 // For non-aligned nodes, use curved path
@@ -581,7 +569,7 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
                 const cp2y = endY + (isGoingUp ? -curveStrength / 2 : curveStrength / 2);
 
                 // Use cubic Bézier curve for smoother paths
-                return `M${startX},${startY} C${cp1x},${cp1y} ${cp2x},${cp2y} ${endX},${endY}`;
+                return `M${startX},${startY} C${cp1x},${cp1y} ${cp2x},${cp2y} ${endX},${endY} `;
             } else {
                 // Dynamic mode - use intersection points based on actual angle
                 const sourceIntersect = getIntersection(angle, sourceWidth, sourceHeight);
@@ -592,7 +580,7 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
                 const endX = (d.target as any).x + targetIntersect.x;
                 const endY = (d.target as any).y + targetIntersect.y;
 
-                return `M${startX},${startY}L${endX},${endY}`;
+                return `M${startX},${startY}L${endX},${endY} `;
             }
         });
 
@@ -623,7 +611,7 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
                     // For straight lines, position label at midpoint
                     const midX = (startX + endX) / 2;
                     const midY = (startY + endY) / 2;
-                    return `translate(${midX},${midY})`;
+                    return `translate(${midX}, ${midY})`;
                 }
 
                 // For curved paths, use the same calculation as before
@@ -656,16 +644,16 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
                 const midX = mt3 * startX + 3 * mt2 * t * cp1x + 3 * mt * t2 * cp2x + t3 * endX;
                 const midY = mt3 * startY + 3 * mt2 * t * cp1y + 3 * mt * t2 * cp2y + t3 * endY;
 
-                return `translate(${midX},${midY})`;
+                return `translate(${midX}, ${midY})`;
             } else {
                 // Dynamic mode - use node centers
                 const midX = ((d.source as any).x + (d.target as any).x) / 2;
                 const midY = ((d.source as any).y + (d.target as any).y) / 2;
-                return `translate(${midX},${midY})`;
+                return `translate(${midX}, ${midY})`;
             }
         });
 
-        node.attr("transform", d => `translate(${d.x!},${d.y!})`);
+        node.attr("transform", d => `translate(${d.x!}, ${d.y!})`);
     }
 
     if (simulation) {
@@ -678,21 +666,21 @@ export function drawGraph(rootElement: HTMLElement, graphData: GraphData): void 
     // Update styles
     const style = document.createElement('style');
     style.textContent = `
-    .edge-label {
-        cursor: default;
+        .edge - label {
+        cursor: default ;
     }
-    .node-background {
+    .node - background {
         fill: white;
         stroke: ${COLORS.BORDER};
-        stroke-width: 1px;
+        stroke - width: 1px;
     }
-    .node-label {
-        font: 12px sans-serif;
+    .node - label {
+        font: 12px sans - serif;
         fill: black;
-        user-select: none;
+        user - select: none;
     }
     .node {
-        cursor: default;
+        cursor: default ;
     }
     `;
     document.head.appendChild(style);
@@ -714,20 +702,22 @@ function showEdgeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, any, any
     tooltip.style("opacity", 0); // Reset opacity
 
     let tableHTML = `
-        <table style="border-collapse: collapse;">
+        <table style = "border-collapse: collapse;" >
             <tr>
-                <th style="padding: 5px; border: 1px solid ${COLORS.BORDER}">Name</th>
-                <th style="padding: 5px; border: 1px solid ${COLORS.BORDER}">Latency</th>
-                <th style="padding: 5px; border: 1px solid ${COLORS.BORDER}">Error Rate</th>
-            </tr>`;
+            <th style="padding: 5px; border: 1px solid ${COLORS.BORDER}" > Name </th>
+            <th style = "padding: 5px; border: 1px solid ${COLORS.BORDER}"> From </th>
+            <th style = "padding: 5px; border: 1px solid ${COLORS.BORDER}" > To </th>
+            <th style = "padding: 5px; border: 1px solid ${COLORS.BORDER}" > Change </th>
+                        </tr>`;
 
     if (subEdges?.length) {
         subEdges.forEach(edge => {
             tableHTML += `
                 <tr>
                     <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${edge.name}</td>
-                    <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatLatency(edge.latency)}</td>
-                    <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${(edge.errorRate * 100).toFixed(3)}%</td>
+                    <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatSeconds(edge.latency.baseValue)}</td>
+                    <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatSeconds(edge.latency.value)}</td>
+                    <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatChange(edge.latency.increase, ValueType.Seconds)}</td>
                 </tr>`;
         });
     } else {
@@ -791,11 +781,15 @@ function showNodeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, any, any
         if (highlightType == HighlightType.High) {
             color = COLOR_HIGHTLIGHT
         }
+        let valueNode = formatValue(metric.comparison.value, valType)
+        if (metric.grafanaLink) {
+            valueNode = `<a href="${metric.grafanaLink}" target="_blank">${valueNode}${renderToString(createElement(GrafanaIcon))}</a>`
+        }
         tableHTML += `
         <tr>
             <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${metric.metricsType}</td>
             <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatValue(metric.comparison.baseValue, valType)}</td>
-            <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${formatValue(metric.comparison.value, valType)}</td>
+            <td style="padding: 5px; border: 1px solid ${COLORS.BORDER}">${valueNode}</td>
             <td style="padding: 5px; border: 1px solid ${COLORS.BORDER};color: ${color}">${formatChange(metric.comparison.increase, valType)}</td>
         </tr>`;
     });
@@ -819,16 +813,7 @@ function showNodeTooltip(tooltip: d3.Selection<HTMLDivElement, unknown, any, any
     });
 }
 
-enum ValueType {
-    Percent = "percent",
-    Seconds = "seconds",
-    Bytes = "bytes",
-    BytesPerSecond = "bytesPerSecond",
-    Rate = "rate",
-    Number = "number",
-}
-
-function getValueType(metric: NodeMetricsType): ValueType {
+export function getValueType(metric: NodeMetricsType): ValueType {
     switch (metric) {
         case NodeMetricsType.CPU:
             return ValueType.Percent;
@@ -853,48 +838,6 @@ function getValueType(metric: NodeMetricsType): ValueType {
         default:
             return ValueType.Number;
     }
-}
-function formatValue(value: number, valType: ValueType): string {
-    switch (valType) {
-        case ValueType.Percent:
-            return `${(value * 100).toFixed(2)}%`;
-        case ValueType.Seconds:
-            return `${value.toFixed(2)}s`;
-        case ValueType.Bytes:
-            return formatBytes(value);
-        case ValueType.BytesPerSecond:
-            return formatBytes(value) + "/s";
-        case ValueType.Rate:
-            return `${value.toFixed(2)}/s`;
-        case ValueType.Number:
-            return `${value.toFixed(2)}`;
-    }
-}
-
-function formatBytes(value: number): string {
-    if (value < 1024) {
-        return `${value}B`;
-    }
-    if (value < 1024 * 1024) {
-        return `${(value / 1024).toFixed(2)}KB`;
-    }
-    if (value < 1024 * 1024 * 1024) {
-        return `${(value / 1024 / 1024).toFixed(2)}MB`;
-    }
-    if (value < 1024 * 1024 * 1024 * 1024) {
-        return `${(value / 1024 / 1024 / 1024).toFixed(2)}GB`;
-    }
-    return `${(value / 1024 / 1024 / 1024 / 1024).toFixed(2)}TB`;
-}
-
-
-function formatChange(value: number, valType: ValueType): string {
-    let sign = "+"
-    if (value < 0) {
-        sign = "-"
-        value = -value
-    }
-    return `${sign}${formatValue(value, valType)}`;
 }
 
 const COLOR_HIGHTLIGHT = "red"
