@@ -890,5 +890,8 @@ function getHighlightType(metrics: NodeMetrics): HighlightType {
         }
         return HighlightType.None
     }
+    if (metrics.metricsType === NodeMetricsType.PROBLEMATIC_POD_RPC_PROCESS_LATENCY) {
+        return HighlightType.High
+    }
     return HighlightType.None
 }

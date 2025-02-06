@@ -26,7 +26,8 @@ export enum NodeMetricsType {
     NETWORK_MYSQL_CONNECTION = "networkMysqlConnection",
     NETWORK_REDIS_CONNECTION = "networkRedisConnection",
     NETWORK_ETCD_CONNECTION = "networkEtcdConnection",
-    POD_COUNT = "pod_count"
+    POD_COUNT = "pod_count",
+    PROBLEMATIC_POD_RPC_PROCESS_LATENCY = "problematicPodRpcProcessLatency",
 }
 
 export interface NodeMetrics {
